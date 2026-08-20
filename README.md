@@ -137,6 +137,55 @@ For money specifically: funds are held before they move, and escrow is sealed an
 
 **Delivered continuously.** Containerised services, GitHub Actions pipelines, and migrations versioned alongside the code.
 
+**And the client, when it helps.** Flutter and native Android — I've shipped the apps that consume these APIs, which keeps my endpoint design honest. An API is easy to defend until you are the one paginating it on a phone with bad signal.
+
+---
+
+## A closer look
+
+<details>
+<summary><b>What one of my services looks like inside</b></summary>
+
+<br>
+
+```
+internal/
+  domain/       entities and rules — imports nothing from the layers below
+  usecase/      orchestration of those rules, still transport-agnostic
+  repository/   Postgres, Redis, Scylla — behind interfaces the usecase owns
+  transport/    gRPC handlers and HTTP edges, thin by design
+  worker/       outbox relays, consumers, sweepers, with their own lifecycle
+  fx/           the wiring, and the only place that knows about all of it
+```
+
+The direction of dependencies is the whole point: `domain` never learns what database it lives in. Swapping Postgres for a fake in a test touches the wiring, not the logic.
+
+</details>
+
+<details>
+<summary><b>How an event survives a crash</b></summary>
+
+<br>
+
+Publishing after committing is a lie waiting to happen — the process can die in between, and the event is gone with no trace that it was owed. So the event is written to an outbox table inside the same transaction as the state change. A relay picks it up afterwards and publishes it, marking it done only once the broker has acknowledged.
+
+The result: the event is published at least once, never zero times, and consumers are built to expect the duplicate that guarantee implies.
+
+</details>
+
+<details>
+<summary><b>Failures that taught me something</b></summary>
+
+<br>
+
+**A connection pooler that silently broke `LISTEN`.** Services reported their listener as "active" while receiving nothing at all — PgBouncer in transaction mode had quietly dropped the session the listener depended on. The lesson stuck: a component that reports health without proving delivery is not monitored, it is decorated. Now the listener verifies an actual round-trip.
+
+**Prepared statements against a pooler.** The same pooler, a different failure: over a thousand errors until `max_prepared_statements` was raised and the driver was moved to one that could negotiate it. Config that lives outside the repository is still part of the system.
+
+**Pub/sub that did not cross instances.** Splitting Redis by workload — GEO, cache, streams — is good for load, and a trap: publishers and subscribers landing on different instances simply never meet, and nothing raises an error. Silence is the worst failure mode there is.
+
+</details>
+
 ---
 
 ## Reference
