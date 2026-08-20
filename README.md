@@ -110,7 +110,6 @@ Distributed transactions are where systems quietly lose money, so I run them thr
 - **Steps park on the real world.** A workflow can sit in `WAITING` for a driver to accept a trip, a KYC check to clear, or an approval to land — for as long as it takes — then be picked up and continued by any process.
 - **Failure unwinds cleanly.** When a step fails, completed steps are compensated in reverse order rather than left half-applied.
 - **Retries are safe.** Idempotency keys are derived deterministically from the transaction, so a retry lands on the same row instead of creating a second one.
-- **Scale.** 80+ step executors across nine domains — payments, top-up, QRIS, wallet, mobility, commerce and more.
 
 For money specifically: funds are held before they move, and escrow is sealed and split inside a single settlement transaction — never released and then re-collected, so there is no window where the money exists twice or not at all.
 
